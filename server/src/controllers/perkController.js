@@ -15,6 +15,15 @@ const perkSchema = Joi.object({
   merchant: Joi.string().allow('')
 
 }); 
+// Schema for PATCH (partial update) – no defaults
+const perkUpdateSchema = Joi.object({
+  title: Joi.string().min(2),
+  description: Joi.string().allow(''),
+  category: Joi.string().valid('food','tech','travel','fitness','other'),
+  discountPercent: Joi.number().min(0).max(100),
+  merchant: Joi.string().allow('')
+}).min(1); // Require at least one field
+
 
   
 
@@ -70,8 +79,30 @@ export async function createPerk(req, res, next) {
 // TODO
 // Update an existing perk by ID and validate only the fields that are being updated 
 export async function updatePerk(req, res, next) {
-  
+  try {
+    // Validate only the fields present in req.body (partial update, no defaults)
+    const { value, error } = perkUpdateSchema.validate(req.body, { presence: 'optional' });
+
+    if (error) return res.status(400).json({ message: error.message });
+
+    // Find perk by ID and update with validated fields
+    const updatedPerk = await Perk.findByIdAndUpdate(
+      req.params.id,
+      { $set: value },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedPerk) return res.status(404).json({ message: 'Perk not found' });
+
+    res.json({ perk: updatedPerk });
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'Duplicate perk for this merchant' });
+    next(err);
+  }
 }
+
+
+
 
 
 // Delete a perk by ID
